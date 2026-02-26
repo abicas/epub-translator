@@ -154,12 +154,6 @@ Open:
 
 - `http://localhost:8000`
 
-## Publishing / Security Notes
-
-- `.env` is ignored by git (`.gitignore`)
-- Never commit API keys or private endpoint credentials
-- Keep `.env.example` as the only shared config template
-
 ## Known Limitations
 
 - Segment-separator protocol:
