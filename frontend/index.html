@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>EPUB Translator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --ink: #0f172a;
+      --paper: #f8fafc;
+      --accent: #0ea5e9;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at 0% 0%, #e0f2fe 0, transparent 40%),
+        radial-gradient(circle at 100% 100%, #cffafe 0, transparent 40%),
+        var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background-color: rgba(14, 165, 233, 0.08);
+    }
+  </style>
+</head>
+<body class="p-4 sm:p-6 lg:p-10">
+  <main class="mx-auto max-w-2xl">
+    <header class="mb-6 sm:mb-8">
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">EPUB Translator</h1>
+      <p class="text-slate-600 mt-2">Self-hosted translation preserving EPUB HTML/CSS formatting.</p>
+    </header>
+
+    <section class="card rounded-2xl p-4 sm:p-6 shadow-xl">
+      <form id="upload-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1" for="source-language">Source language</label>
+          <input id="source-language" name="source_language" type="text" value="Auto-detect"
+                 class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="target-language">Target language</label>
+          <input id="target-language" name="target_language" type="text" value="Brazilian Portuguese" required
+                 class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-600 mb-1" for="start-chapter">Start chapter</label>
+            <input id="start-chapter" name="start_chapter" type="number" min="1" value="1"
+                   class="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-600 mb-1" for="end-chapter">End chapter (0 = last)</label>
+            <input id="end-chapter" name="end_chapter" type="number" min="0" value="0"
+                   class="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <label class="flex items-center gap-2">
+            <input id="test-mode" name="test_mode" type="checkbox" value="true" class="h-4 w-4" />
+            <span class="text-sm font-medium">TEST MODE: translate only first N chapters from selected range</span>
+          </label>
+          <div class="mt-2">
+            <label class="block text-xs text-slate-600 mb-1" for="test-chapter-limit">Chapter limit</label>
+            <input id="test-chapter-limit" name="test_chapter_limit" type="number" min="1" value="5"
+                   class="w-28 rounded-lg border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+        </div>
+
+        <div id="dropzone" class="dropzone rounded-xl border-2 border-dashed border-slate-300 p-5 text-center transition cursor-pointer">
+          <input id="file-input" name="file" type="file" accept=".epub" class="hidden" required />
+          <p class="font-medium">Tap to select EPUB or drop it here</p>
+          <p id="file-name" class="text-sm text-slate-500 mt-1">No file selected</p>
+        </div>
+
+        <button id="translate-btn" type="submit"
+                class="w-full rounded-xl bg-sky-600 text-white font-semibold py-3 hover:bg-sky-700 active:bg-sky-800 transition disabled:opacity-50 disabled:cursor-not-allowed">
+          Translate EPUB
+        </button>
+      </form>
+
+      <div id="status-panel" class="mt-5 hidden rounded-xl border border-slate-200 bg-white p-4">
+        <p class="text-sm text-slate-600">Status</p>
+        <p id="status-text" class="font-medium mt-1">Queued</p>
+        <div class="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div id="status-bar" class="h-full w-1/12 bg-sky-600 transition-all"></div>
+        </div>
+        <div class="mt-4 flex gap-2">
+          <button id="pause-btn" type="button" class="rounded-lg border border-amber-300 bg-amber-50 text-amber-800 px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled>Pause</button>
+          <button id="resume-btn" type="button" class="rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled>Resume</button>
+        </div>
+      </div>
+
+      <div id="result-panel" class="mt-5 hidden rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <p class="font-semibold text-emerald-800">Translation finished.</p>
+        <a id="download-link" href="#" class="inline-block mt-3 rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-semibold hover:bg-emerald-700">
+          Download translated EPUB
+        </a>
+        <pre id="benchmark-text" class="mt-3 text-xs whitespace-pre-wrap text-emerald-900"></pre>
+      </div>
+
+      <div id="error-panel" class="mt-5 hidden rounded-xl border border-red-200 bg-red-50 p-4">
+        <p class="font-semibold text-red-800">Translation failed</p>
+        <p id="error-text" class="text-sm text-red-700 mt-1"></p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('upload-form');
+    const fileInput = document.getElementById('file-input');
+    const fileName = document.getElementById('file-name');
+    const dropzone = document.getElementById('dropzone');
+    const translateBtn = document.getElementById('translate-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+    const resumeBtn = document.getElementById('resume-btn');
+
+    const statusPanel = document.getElementById('status-panel');
+    const statusText = document.getElementById('status-text');
+    const statusBar = document.getElementById('status-bar');
+
+    const resultPanel = document.getElementById('result-panel');
+    const downloadLink = document.getElementById('download-link');
+    const benchmarkText = document.getElementById('benchmark-text');
+
+    const errorPanel = document.getElementById('error-panel');
+    const errorText = document.getElementById('error-text');
+
+    let progressTick = 8;
+    let currentJobId = null;
+    let pollingActive = false;
+
+    function resetPanels() {
+      resultPanel.classList.add('hidden');
+      errorPanel.classList.add('hidden');
+      statusPanel.classList.add('hidden');
+      benchmarkText.textContent = '';
+      statusBar.style.width = '8%';
+      progressTick = 8;
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = true;
+    }
+
+    function setStatus(message) {
+      statusPanel.classList.remove('hidden');
+      statusText.textContent = message;
+      progressTick = Math.min(progressTick + 4, 92);
+      statusBar.style.width = `${progressTick}%`;
+    }
+
+    function showError(message) {
+      errorPanel.classList.remove('hidden');
+      errorText.textContent = message;
+    }
+
+    function renderBenchmark(benchmark) {
+      if (!benchmark) return;
+      const lines = [
+        `Duration: ${benchmark.duration_seconds ?? '-'}s`,
+        `Range: ${benchmark.start_chapter ?? '-'} to ${benchmark.end_chapter ?? 'last'}`,
+        `Test mode: ${benchmark.test_mode ? 'yes' : 'no'} (limit ${benchmark.test_chapter_limit ?? '-'})`,
+        `Chapters: ${benchmark.chapters_processed ?? '-'} / ${benchmark.chapters_in_book ?? '-'}`,
+        `Chunks: ${benchmark.chunks_processed ?? '-'}`,
+        `Segments: ${benchmark.segments_translated ?? '-'}`,
+        `Source chars: ${benchmark.source_chars_translated ?? '-'}`,
+        `Avg sec/chapter: ${benchmark.avg_seconds_per_chapter ?? '-'}`,
+        `Avg chars/sec: ${benchmark.avg_chars_per_second ?? '-'}`,
+      ];
+      benchmarkText.textContent = lines.join('\n');
+    }
+
+    async function pauseJob() {
+      if (!currentJobId) return;
+      pauseBtn.disabled = true;
+      try {
+        await fetch(`/api/jobs/${currentJobId}/pause`, { method: 'POST' });
+      } catch (_) {}
+    }
+
+    async function resumeJob() {
+      if (!currentJobId) return;
+      resumeBtn.disabled = true;
+      try {
+        const response = await fetch(`/api/jobs/${currentJobId}/resume`, { method: 'POST' });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.detail || 'Failed to resume job');
+        }
+        pollingActive = true;
+        pollJob(currentJobId);
+      } catch (err) {
+        showError(err.message || 'Failed to resume');
+      }
+    }
+
+    async function pollJob(jobId) {
+      if (pollingActive) {
+        // allow re-entry only when resuming from paused state
+      }
+      pollingActive = true;
+      while (pollingActive) {
+        const response = await fetch(`/api/jobs/${jobId}`);
+        if (!response.ok) {
+          pollingActive = false;
+          throw new Error('Failed to fetch job status');
+        }
+
+        const job = await response.json();
+        setStatus(job.progress || job.status);
+
+        if (job.status === 'running') {
+          pauseBtn.disabled = false;
+          resumeBtn.disabled = true;
+        }
+
+        if (job.status === 'paused') {
+          pauseBtn.disabled = true;
+          resumeBtn.disabled = false;
+          pollingActive = false;
+          return;
+        }
+
+        if (job.status === 'completed') {
+          statusBar.style.width = '100%';
+          pauseBtn.disabled = true;
+          resumeBtn.disabled = true;
+          downloadLink.href = `/api/download/${jobId}`;
+          renderBenchmark(job.benchmark);
+          resultPanel.classList.remove('hidden');
+          pollingActive = false;
+          return;
+        }
+
+        if (job.status === 'failed') {
+          pauseBtn.disabled = true;
+          resumeBtn.disabled = false;
+          pollingActive = false;
+          throw new Error(job.error || 'Unknown translation error');
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      dropzone.addEventListener(eventName, () => dropzone.classList.add('dragover'));
+    });
+
+    ['dragleave', 'drop'].forEach((eventName) => {
+      dropzone.addEventListener(eventName, () => dropzone.classList.remove('dragover'));
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      if (!e.dataTransfer.files.length) return;
+      fileInput.files = e.dataTransfer.files;
+      updateFileLabel();
+    });
+
+    fileInput.addEventListener('change', updateFileLabel);
+
+    function updateFileLabel() {
+      fileName.textContent = fileInput.files.length ? fileInput.files[0].name : 'No file selected';
+    }
+
+    pauseBtn.addEventListener('click', pauseJob);
+    resumeBtn.addEventListener('click', resumeJob);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      resetPanels();
+
+      if (!fileInput.files.length) {
+        showError('Select an EPUB file first.');
+        return;
+      }
+
+      translateBtn.disabled = true;
+
+      try {
+        const data = new FormData(form);
+        const testMode = document.getElementById('test-mode').checked;
+        const chapterLimit = Number(document.getElementById('test-chapter-limit').value || '5');
+        const startChapter = Number(document.getElementById('start-chapter').value || '1');
+        const endChapter = Number(document.getElementById('end-chapter').value || '0');
+
+        data.set('start_chapter', String(Math.max(1, startChapter)));
+        data.set('end_chapter', String(Math.max(0, endChapter)));
+
+        if (testMode) {
+          data.set('test_mode', 'true');
+          data.set('test_chapter_limit', String(Math.max(1, chapterLimit)));
+        } else {
+          data.set('test_mode', 'false');
+          data.delete('test_chapter_limit');
+        }
+
+        setStatus('Uploading EPUB');
+
+        const response = await fetch('/api/translate', {
+          method: 'POST',
+          body: data,
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.detail || 'Upload failed');
+        }
+
+        const payload = await response.json();
+        currentJobId = payload.job_id;
+        setStatus('Processing translation');
+        await pollJob(currentJobId);
+      } catch (err) {
+        showError(err.message || 'Unexpected error');
+      } finally {
+        translateBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
