@@ -2,6 +2,10 @@
 
 Self-hosted FastAPI web app that translates EPUB books with a local LLM via LM Studio while preserving EPUB structure, HTML/XHTML tags, and CSS references.
 
+## Architecture Diagram
+
+![Architecture Diagram](images/architecture.png)
+
 ## What This Project Does
 
 - Upload an `.epub` from the browser
